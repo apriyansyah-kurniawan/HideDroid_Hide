@@ -1,0 +1,603 @@
+package projectdroid;
+
+import java.awt.*;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
+import java.util.*;
+import javax.swing.*;
+import javax.swing.Timer;
+import javax.swing.JButton;
+import javax.swing.JOptionPane;
+
+public class Projectdroid extends JFrame {
+    private double distanceThreshold = 5;
+    JSlider distanceSlider = new JSlider(JSlider.HORIZONTAL, 0, 10, 5);
+    private Timer timer;
+    private int[][] map;
+    private final int numRows = 20;
+    private final int numCols = 20; 
+    private final int cellSize = 30;
+    private JPanel MazePanel;
+    private JButton generateButton;
+    private JButton placeDroidGreenButton;
+    private JButton acakDroidGreenButton;
+    private JButton placeDroidRedButton;
+    private JButton acakDroidRedButton;
+    private JButton DFSButton;
+    private JButton SRDButton;
+    private JButton SGDButton;
+    private JButton PButton;
+    private JButton RButton;
+    private JButton exitButton;
+    private Random rand;
+    private final ArrayList<Point> redDroids = new ArrayList<>(); // variabel untuk menyimpan droid merah
+    private Point greenDroid; // variabel untuk menyimpan droid hijau
+    private boolean isRunning = true;
+    boolean isGreenDroidFound = false;
+
+
+public Projectdroid(){
+    init();
+}
+
+private void init() {
+    setTitle("H1De Dr01d : H1dE! (Design and Analysis Algorithms)");
+    setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+    setSize(1280, 720);
+    setResizable(true);
+
+    // membuat panel untuk peta
+    MazePanel = new JPanel();
+    MazePanel.setPreferredSize(new Dimension(numCols * cellSize, numRows * cellSize));
+    MazePanel.setLayout(new GridLayout(numRows, numCols));
+    getContentPane().add(MazePanel, BorderLayout.CENTER);
+ 
+    JPanel buttonPanel = new JPanel();
+    buttonPanel.setLayout(new GridLayout(12,1));
+    
+    
+    // membuat tombol untuk peta acak
+    generateButton = new JButton("Acak/Reset Peta");
+    generateButton.addActionListener(e -> generateMap());
+    buttonPanel.add(generateButton);
+    
+    //tombol tambah droid merah
+    placeDroidRedButton = new JButton("Tambah Droid Merah");
+    placeDroidRedButton.addActionListener(e -> placeDroid());
+   
+    //tombol tambah droid hijau
+    placeDroidGreenButton = new JButton("Tambah Droid Hijau");
+    placeDroidGreenButton.addActionListener(e -> placeGreenDroid());
+    buttonPanel.add(placeDroidGreenButton);
+    buttonPanel.add(placeDroidRedButton);
+    
+    //tombol acak droid merah
+    acakDroidRedButton = new JButton("Acak Droid Merah");
+    acakDroidRedButton.addActionListener(e -> repositionRedDroids());
+    buttonPanel.add(acakDroidRedButton);
+
+    //tombol acak droid hijau
+    acakDroidGreenButton = new JButton("Acak Droid Hijau");
+    acakDroidGreenButton.addActionListener(e -> repositionGreenDroid());
+    buttonPanel.add(acakDroidGreenButton);
+
+    getContentPane().add(buttonPanel, BorderLayout.WEST);
+
+    //tombol pov droid merah
+    SRDButton = new JButton("Pandangan Droid Merah");
+    SRDButton.addActionListener(e -> startRedTimer());
+    buttonPanel.add(SRDButton);
+
+    //tombol pov droid hijau
+    SGDButton = new JButton("Pandangan Droid Hijau");
+    SGDButton.addActionListener(e -> startPOVTimer());
+    buttonPanel.add(SGDButton);
+    
+    //tombol mulai simulasi
+    DFSButton = new JButton("Start");
+    DFSButton.addActionListener(e -> searchGreenDroidDFS());
+    buttonPanel.add(DFSButton);
+
+    //tombol pause
+    PButton = new JButton("Pause");
+    PButton.addActionListener (e -> pauseProgram());
+    buttonPanel.add(PButton);
+
+    //tombol resume
+    RButton = new JButton("Resume");
+    RButton.addActionListener(e -> resumeProgram());
+    buttonPanel.add(RButton);
+
+    //Jslider untuk Atur jarak pandang droid hijau
+    JPanel sliderPanel = new JPanel();
+    sliderPanel.setLayout(new BorderLayout());
+
+    //Jslider untuk Atur jarak pandang droid hijau
+    JPanel sliderPanel2 = new JPanel();
+    sliderPanel2.setLayout(new BorderLayout());
+
+    JLabel sliderLabel = new JLabel("Atur Jarak Pandang Droid Hijau : ");
+    sliderPanel2.add(sliderLabel, BorderLayout.WEST);
+
+    JSlider slider = new JSlider(0, 10, 5); // nilai awal 5, minimum 0, maksimum 20
+    slider.setMajorTickSpacing(1);
+    slider.setMinorTickSpacing(1);
+    slider.setPaintTicks(true);
+    slider.setPaintLabels(true);
+    slider.addChangeListener(e -> {
+        JSlider source = (JSlider) e.getSource();
+        double newValue = source.getValue();
+        distanceThreshold = newValue;
+    });
+    sliderPanel.add(slider, BorderLayout.CENTER);
+    buttonPanel.add(sliderPanel);
+    
+    //tombol untuk keluar dari aplikasi
+    exitButton = new JButton("Exit");
+    exitButton.addActionListener(e -> System.exit(0));
+    buttonPanel.add(exitButton);
+    
+    pack();
+    setLocationRelativeTo(null);
+    setVisible(true);
+    rand = new Random();
+}
+
+//method untuk tombol pause dan resume
+private void pauseProgram() {
+    isRunning = false;
+}
+
+private void resumeProgram() {
+    isRunning = true;
+}
+
+// method untuk generate map acak
+private void generateMap() {
+    isRunning = true;
+    // menghapus droid merah dan hijau yang telah ada
+    for (Point droid : redDroids) {
+        JPanel cell = (JPanel) MazePanel.getComponent(droid.x * numCols + droid.y);
+        cell.removeAll();
+    }
+    redDroids.clear();
+    if (greenDroid != null) {
+        JPanel cell = (JPanel) MazePanel.getComponent(greenDroid.x * numCols + greenDroid.y);
+        cell.removeAll();
+        greenDroid = null;
+    }
+        map = new int[numRows][numCols];
+        for (int i = 0; i < numRows; i++) {
+            Arrays.fill(map[i], 1);
+        }
+        
+        int startX = rand.nextInt(numRows);
+        int startY = rand.nextInt(numCols);
+        
+        Stack<Point> stack = new Stack<>();
+        stack.push(new Point(startX, startY));
+        while (!stack.isEmpty()) {
+            Point curr = stack.peek();
+            int x = curr.x;
+            int y = curr.y;
+            map[x][y] = 0; // tandai sel ini sebagai jalan
+
+            // mencari tetangga yang belum dikunjungi
+            ArrayList<Point> neighbors = new ArrayList<>();
+            if (x > 1 && map[x - 2][y] == 1) {
+                neighbors.add(new Point(x - 2, y));
+            }
+            if (x < numRows - 2 && map[x + 2][y] == 1) {
+                neighbors.add(new Point(x + 2, y));
+            }
+            if (y > 1 && map[x][y - 2] == 1) {
+                neighbors.add(new Point(x, y - 2));
+            }
+            if (y < numCols - 2 && map[x][y + 2] == 1) {
+                neighbors.add(new Point(x, y + 2));
+            }
+
+            if (!neighbors.isEmpty()) {
+                // memilih tetangga secara acak untuk dikunjungi
+                Point next = neighbors.get(rand.nextInt(neighbors.size()));
+                // membuat jalan menuju tetangga
+                int nextX = next.x;
+                int nextY = next.y;
+
+                if (nextX == x - 2) {
+                    map[x - 1][y] = 0;
+                } else if (nextX == x + 2) {
+                    map[x + 1][y] = 0;
+                } else if (nextY == y - 2) {
+                    map[x][y - 1] = 0;
+                } else if (nextY == y + 2) {
+                    map[x][y + 1] = 0;
+                }
+                    stack.push(next);
+                } else {
+                // tidak ada tetangga yang belum dikunjungi, kembali ke sel sebelumnya
+                    stack.pop();
+                }
+            }
+
+    // menggambar peta
+    MazePanel.removeAll();
+    for (int i = 0; i < numRows; i++) {
+        for (int j = 0; j < numCols; j++) {
+            JPanel cell = new JPanel();
+            cell.setOpaque(true);
+            cell.setPreferredSize(new Dimension(cellSize, cellSize));
+            if (map[i][j] == 1) {
+               cell.setBackground(Color.BLACK);
+               
+            } else {
+                cell.setBackground(Color.WHITE);
+                
+            }
+            MazePanel.add(cell);
+        }
+    }
+    MazePanel.revalidate();
+    MazePanel.repaint();
+}
+
+//method meletakan droid merah dan hijau
+private void placeDroid() {
+    // mencari sebuah sel yang merupakan jalan
+    int x, y;
+    do {
+        x = rand.nextInt(numRows);
+        y = rand.nextInt(numCols);
+    } while (map[x][y] != 0);
+
+    // menempatkan droid pada sel tersebut
+    JPanel cell = (JPanel) MazePanel.getComponent(x * numCols + y);
+    cell.setLayout(new BorderLayout());
+    JLabel droid = new JLabel("●", SwingConstants.CENTER);
+    droid.setForeground(Color.red);
+    cell.add(droid, BorderLayout.CENTER);
+    redDroids.add(new Point(x, y)); // menambahkan posisi droid merah ke variabel
+    MazePanel.revalidate();
+    MazePanel.repaint();
+}
+
+private void placeGreenDroid() {
+
+if (greenDroid != null) {
+        return; // sudah ada droid hijau pada peta
+    }
+
+    // mencari sebuah sel yang merupakan jalan
+    int x, y;
+    do {
+        x = rand.nextInt(numRows);
+        y = rand.nextInt(numCols);
+    } while (map[x][y] != 0);
+
+    // menempatkan droid hijau pada sel tersebut
+    JPanel cell = (JPanel) MazePanel.getComponent(x * numCols + y);
+    cell.setLayout(new BorderLayout());
+    JLabel droid = new JLabel("●", SwingConstants.CENTER);
+    droid.setForeground(Color.GREEN);
+    cell.add(droid, BorderLayout.CENTER);
+    greenDroid = new Point(x, y); // menyimpan posisi droid hijau ke variabel
+    MazePanel.revalidate();
+    MazePanel.repaint();
+}
+
+// mengatur ulang posisi droid merah dan droid hijau
+private void repositionRedDroids() {
+    // Menghapus semua droid merah yang ada sebelumnya
+     int numberOfRedDroids = redDroids.size();
+    for (Point redDroid : redDroids) {
+        JPanel cell = (JPanel) MazePanel.getComponent(redDroid.x * numCols + redDroid.y);
+        cell.removeAll();
+    }
+    redDroids.clear(); // Menghapus semua posisi droid merah yang ada sebelumnya
+
+    // Mengacak posisi baru untuk setiap droid merah
+    for (int i = 0; i < numberOfRedDroids; i++) {
+        int x, y;
+        do {
+            x = rand.nextInt(numRows);
+            y = rand.nextInt(numCols);
+        } while (map[x][y] != 0);
+
+        // Menempatkan droid merah pada posisi yang baru
+        JPanel cell = (JPanel) MazePanel.getComponent(x * numCols + y);
+        cell.setLayout(new BorderLayout());
+        JLabel droid = new JLabel("●", SwingConstants.CENTER);
+        droid.setForeground(Color.RED);
+        cell.add(droid, BorderLayout.CENTER);
+        redDroids.add(new Point(x, y)); // Menambahkan posisi droid merah yang baru ke variabel
+    }
+
+    MazePanel.revalidate();
+    MazePanel.repaint();
+}
+
+
+private void repositionGreenDroid() {
+    // Menghapus droid hijau yang ada sebelumnya
+    if (greenDroid != null) {
+        JPanel cell = (JPanel) MazePanel.getComponent(greenDroid.x * numCols + greenDroid.y);
+        cell.removeAll();
+        greenDroid = null; // Menghapus posisi droid hijau yang ada sebelumnya
+    }
+
+    // Mengacak posisi baru untuk droid hijau
+    int x, y;
+    do {
+        x = rand.nextInt(numRows);
+        y = rand.nextInt(numCols);
+    } while (map[x][y] != 0);
+
+    // Menempatkan droid hijau pada posisi yang baru
+    JPanel cell = (JPanel) MazePanel.getComponent(x * numCols + y);
+    cell.setLayout(new BorderLayout());
+    JLabel droid = new JLabel("●", SwingConstants.CENTER);
+    droid.setForeground(Color.GREEN);
+    cell.add(droid, BorderLayout.CENTER);
+    greenDroid = new Point(x, y); // Menyimpan posisi droid hijau yang baru ke variabel
+    MazePanel.revalidate();
+    MazePanel.repaint();
+}
+
+private void startRedTimer() {
+    timer = new Timer(200, e -> povRED());
+    timer.start();
+}
+
+// Jarak pandang droid merah
+private void povRED() {
+    // menampilkan hanya droid merah pada peta
+    for (Point redDroid : redDroids) {
+        JPanel cell = (JPanel) MazePanel.getComponent(redDroid.x * numCols + redDroid.y);
+        cell.setLayout(new BorderLayout());
+        JLabel droid = new JLabel("●", SwingConstants.CENTER);
+        droid.setForeground(Color.red);
+        //cell.add(droid, BorderLayout.CENTER);
+    }
+    // menampilkan droid hijau pada posisinya
+    if (greenDroid != null) {
+        JPanel Gcell = (JPanel) MazePanel.getComponent(greenDroid.x * numCols + greenDroid.y);
+        Gcell.removeAll();
+        JPanel cell = (JPanel) MazePanel.getComponent(greenDroid.x * numCols + greenDroid.y);        
+        cell.setLayout(new BorderLayout());
+        JLabel droid = new JLabel("●", SwingConstants.CENTER);
+        droid.setForeground(Color.WHITE);
+        cell.add(droid, BorderLayout.CENTER);
+    }
+    MazePanel.revalidate();
+    MazePanel.repaint();
+}
+
+// jarak pandang droid hijau (dalam sel)
+private void startPOVTimer() {
+    timer = new Timer(200, e -> povGREEN());
+    timer.start();
+}
+
+private void povGREEN() {
+    // Menghapus semua warna sebelumnya
+    for (Component component : MazePanel.getComponents()) {
+        JPanel cell = (JPanel) component;
+        cell.setBackground(Color.white); // Ganti dengan warna latar belakang yang diinginkan
+        cell.setOpaque(true); // Mengatur opaqueness menjadi true untuk mengembalikan opaqueness yang mungkin telah diubah sebelumnya
+    }
+    
+    // Membuat lingkaran sudut pandang droid hijau yang baru
+    double radius = distanceThreshold; // Jarak sudut pandang droid hijau
+    int centerX = greenDroid.x;
+    int centerY = greenDroid.y;
+
+    // Mengubah warna sel-sel yang berada di luar sudut pandang droid hijau menjadi hitam
+    for (int i = 0; i < numRows; i++) {
+        for (int j = 0; j < numCols; j++) {
+            JPanel cell = (JPanel) MazePanel.getComponent(i * numCols + j);
+            double distance = Math.sqrt(Math.pow(i - centerX, 2) + Math.pow(j - centerY, 2));
+            if (distance > radius) {
+                cell.setBackground(Color.black);   
+            }
+            if (distance <= radius) {
+                if (map[i][j] == 1) {
+                    cell.setBackground(Color.BLACK);
+                }
+            }
+        }
+    }
+    
+    // Mengubah warna sel-sel yang telah dikunjungi oleh droid merah menjadi transparan
+    for (Point p : redDroids) {
+        int x = p.x;
+        int y = p.y;
+        double distance = Math.sqrt(Math.pow(x - centerX, 2) + Math.pow(y - centerY, 2));
+        if (distance <= radius) {
+            JPanel cell = (JPanel) MazePanel.getComponent(x * numCols + y);
+            cell.setOpaque(false);
+        }
+    }
+    
+    MazePanel.revalidate();
+    MazePanel.repaint();
+}
+
+
+// DROID MERAH = dfs, (BACKTRACKING)
+private void searchGreenDroidDFS() {
+    for (Point redDroid : redDroids) {
+        Thread searchThread = new Thread(() -> {
+        boolean[][] visited = new boolean[numRows][numCols];
+        Stack<Point> stack = new Stack<>();
+        // Menggunakan droid merah pertama sebagai titik awal
+        stack.push(redDroid);
+        visited[redDroid.x][redDroid.y] = true;
+
+        // Membuat Timer untuk mengatur pergerakan droid merah
+        Timer timer = new Timer(150, new ActionListener() {
+        @Override
+        public void actionPerformed(ActionEvent e) {
+        if (isRunning) {
+            if (!stack.isEmpty()) {
+                Point current = stack.peek();
+                JPanel currentCell = (JPanel) MazePanel.getComponent(current.x * numCols + current.y);
+
+                // Pencarian tetangga yang merupakan jalur jalan
+                ArrayList<Point> neighbors = new ArrayList<>();
+                int x = current.x;
+                int y = current.y;
+
+                if (x > 0 && map[x - 1][y] == 0 && !visited[x - 1][y]) {
+                    neighbors.add(new Point(x - 1, y));
+                }
+                if (x < numRows - 1 && map[x + 1][y] == 0 && !visited[x + 1][y]) {
+                    neighbors.add(new Point(x + 1, y));
+                }
+                if (y > 0 && map[x][y - 1] == 0 && !visited[x][y - 1]) {
+                    neighbors.add(new Point(x, y - 1));
+                } 
+                if (y < numCols - 1 && map[x][y + 1] == 0 && !visited[x][y + 1]) {
+                    neighbors.add(new Point(x, y + 1));
+                }
+
+                if (!neighbors.isEmpty()) {
+                    // Memilih tetangga secara acak untuk dijelajahi selanjutnya
+                    Point next = neighbors.get(rand.nextInt(neighbors.size()));
+                    visited[next.x][next.y] = true;
+                    stack.push(next);
+                    JPanel nextCell = (JPanel) MazePanel.getComponent(next.x * numCols + next.y);
+
+                    // Menghapus droid merah pada sel sebelumnya
+                    currentCell.removeAll();
+                    currentCell.revalidate();
+                    currentCell.repaint();
+
+                    // Menambahkan droid merah pada sel berikutnya
+                    nextCell.setLayout(new BorderLayout());
+                    JLabel droid = new JLabel("●", SwingConstants.CENTER);
+                    droid.setForeground(Color.red);
+                    nextCell.add(droid, BorderLayout.CENTER);
+                    nextCell.revalidate();
+                    nextCell.repaint();
+
+                // Jika droid merah bertemu dengan droid hijau, berhenti
+                if (next.equals(greenDroid)&& isRunning) {
+                    ((Timer) e.getSource()).stop();
+                    isRunning = false;
+                    JOptionPane.showMessageDialog(null, "Droid merah berhasil menemukan droid hijau!");
+                    return;
+                }
+                moveGreenDroidAway(next, greenDroid);
+                } else {
+                    // Tidak ada tetangga yang belum dikunjungi, mundur menggunakan backtracking
+                    stack.pop();
+
+                    // Menghapus droid merah pada sel saat melakukan backtracking
+                    currentCell.removeAll();
+                    currentCell.revalidate();
+                    currentCell.repaint();
+
+                    // Menambahkan droid merah kembali pada sel saat melakukan backtracking
+                    JPanel prevCell = (JPanel) MazePanel.getComponent(stack.peek().x * numCols + stack.peek().y);
+                    prevCell.setLayout(new BorderLayout());
+                    JLabel droid = new JLabel("●", SwingConstants.CENTER);
+                    droid.setForeground(Color.red);
+                    prevCell.add(droid, BorderLayout.CENTER);
+                    prevCell.revalidate();
+                    prevCell.repaint();
+
+                    }
+                } 
+                else {
+                // Jika stack kosong, berarti pencarian selesai tanpa menemukan droid hijau
+                ((Timer) e.getSource()).stop();
+                JOptionPane.showMessageDialog(null, "Droid merah tidak dapat menemukan droid hijau.");
+                }
+              }
+            }
+         });
+        // Memulai Timer untuk pergerakan droid merah
+        timer.start();
+      });
+    searchThread.start();
+  }
+}
+
+//DROID HIJAU = Euclidean (menghitung jarak antara droid merah dan hijau)
+private void moveGreenDroidAway(Point redDroid, Point greenDroid) {
+    double distance = calculateDistance(redDroid, greenDroid);
+    int safeDistance = 3; // Jarak aman antara droid merah dan droid hijau
+
+    if (distance <= distanceThreshold) {
+        // Menghindari droid merah jika jarak kurang dari atau sama dengan jarak aman
+        Point safeMove = getSafeMove(redDroid, greenDroid);
+        if (safeMove != null) {
+            int prevX = greenDroid.x;
+            int prevY = greenDroid.y;
+
+            greenDroid.x = safeMove.x;
+            greenDroid.y = safeMove.y;
+
+            JPanel prevCell = (JPanel) MazePanel.getComponent(prevX * numCols + prevY);
+            JPanel greenCell = (JPanel) MazePanel.getComponent(greenDroid.x * numCols + greenDroid.y);
+            if (redDroid.equals(greenDroid) && isRunning) {
+                isRunning = false;
+                JOptionPane.showMessageDialog(null, "Droid merah berhasil menemukan droid hijau!");
+                return;
+            }
+            // Menghapus droid hijau pada sel sebelumnya
+            prevCell.removeAll();
+            prevCell.revalidate();
+            prevCell.repaint();
+
+            // Menambahkan droid hijau pada sel berikutnya
+            greenCell.setLayout(new BorderLayout());
+            JLabel droid = new JLabel("●", SwingConstants.CENTER);
+            droid.setForeground(Color.green);
+            greenCell.add(droid, BorderLayout.CENTER);
+            greenCell.revalidate();
+            greenCell.repaint();
+        }
+    }
+}
+
+
+private double calculateDistance(Point p1, Point p2) {              //kalkulasi jarak Euclidean
+    int dx = p2.x - p1.x;
+    int dy = p2.y - p1.y;
+    return Math.sqrt(dx * dx + dy * dy);
+}
+
+private Point getSafeMove(Point redDroid, Point greenDroid) {       // 
+    ArrayList<Point> safeMoves = new ArrayList<>();
+ boolean[][] visited = new boolean[numRows][numCols]; // Deklarasi variabel visited di dalam fungsi
+    
+    int x = greenDroid.x;
+    int y = greenDroid.y;
+
+    if (x > 0 && map[x - 1][y] == 0 && !visited[x - 1][y]) {
+        safeMoves.add(new Point(x - 1, y));
+    }
+    if (x < numRows - 1 && map[x + 1][y] == 0 && !visited[x + 1][y]) {
+        safeMoves.add(new Point(x + 1, y));
+    }
+    if (y > 0 && map[x][y - 1] == 0 && !visited[x][y - 1]) {
+        safeMoves.add(new Point(x, y - 1));
+    } 
+    if (y < numCols - 1 && map[x][y + 1] == 0 && !visited[x][y + 1]) {
+        safeMoves.add(new Point(x, y + 1));
+    }
+
+    if (!safeMoves.isEmpty()) {                 //periksa setiap cell dilewati tidak kosong 
+        // Memilih tetangga secara acak untuk bergerak menjauhi droid merah
+        return safeMoves.get(rand.nextInt(safeMoves.size()));
+    }
+
+    return null;
+}
+
+
+public static void main(String[] args) {
+    new Projectdroid();
+   }
+}
